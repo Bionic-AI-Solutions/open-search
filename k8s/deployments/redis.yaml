@@ -1,0 +1,59 @@
+# =============================================================================
+# STANDALONE REDIS DEPLOYMENT - COMMENTED OUT
+# =============================================================================
+# This deployment is commented out because we are using the existing
+# Redis Enterprise cluster (mcp-database) in the 'redis' namespace.
+# 
+# To use standalone Redis instead:
+# 1. Uncomment this deployment
+# 2. Uncomment the redis service in services/redis.yaml
+# 3. Uncomment the redis PVC in storage/redis-pvc.yaml
+# 4. Update app-config.yaml to use redis:6379 instead of mcp-database
+# 5. Update deployments to use redis:6379 instead of mcp-database
+# =============================================================================
+
+# apiVersion: apps/v1
+# kind: Deployment
+# metadata:
+#   name: redis
+#   namespace: search-infrastructure
+# spec:
+#   replicas: 1
+#   selector:
+#     matchLabels:
+#       app: redis
+#   template:
+#     metadata:
+#       labels:
+#         app: redis
+#     spec:
+#       containers:
+#       - name: redis
+#         image: redis:7-alpine
+#         ports:
+#         - containerPort: 6379
+#         command: ["redis-server", "--appendonly", "yes", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
+#         volumeMounts:
+#         - name: redis-storage
+#           mountPath: /data
+#         resources:
+#           requests:
+#             memory: "256Mi"
+#             cpu: "250m"
+#           limits:
+#             memory: "512Mi"
+#             cpu: "500m"
+#         livenessProbe:
+#           tcpSocket:
+#             port: 6379
+#           initialDelaySeconds: 30
+#           periodSeconds: 10
+#         readinessProbe:
+#           exec:
+#             command: ["redis-cli", "ping"]
+#           initialDelaySeconds: 5
+#           periodSeconds: 5
+#       volumes:
+#       - name: redis-storage
+#         persistentVolumeClaim:
+#           claimName: redis-pvc

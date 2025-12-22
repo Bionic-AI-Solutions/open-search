@@ -1,0 +1,49 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: search-ingress
+  namespace: search-infrastructure
+  annotations:
+    # Using Kong ingress (primary in cluster) - change to nginx if preferred
+    konghq.com/strip-path: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # Alternative nginx annotations (uncomment if using nginx):
+    # nginx.ingress.kubernetes.io/rewrite-target: /
+    # nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  # Using Kong ingress class (primary in cluster)
+  # Change to 'nginx' if you prefer nginx ingress controller
+  ingressClassName: kong
+  tls:
+  - hosts:
+    # TODO: Update with your actual domain
+    - search.bionicaisolutions.com
+    secretName: search-tls
+  rules:
+  - host: search.bionicaisolutions.com
+    http:
+      paths:
+      # MCP Server - Main API endpoint
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mcp-server
+            port:
+              number: 3000
+      # Optional: SearXNG direct access (uncomment if needed)
+      # - path: /searxng
+      #   pathType: Prefix
+      #   backend:
+      #     service:
+      #       name: searxng
+      #       port:
+      #         number: 8080
+      # Optional: Crawl4AI direct access (uncomment if needed)
+      # - path: /crawl4ai
+      #   pathType: Prefix
+      #   backend:
+      #     service:
+      #       name: crawl4ai
+      #       port:
+      #         number: 8000

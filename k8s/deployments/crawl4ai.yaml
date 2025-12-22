@@ -1,0 +1,98 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crawl4ai
+  namespace: search-infrastructure
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: crawl4ai
+  template:
+    metadata:
+      labels:
+        app: crawl4ai
+    spec:
+      # Image pull secret for Docker Hub private images
+      # Using same secret pattern as other namespaces (docker4zerocool-registry-secret)
+      imagePullSecrets:
+      - name: docker-registry-secret
+      # Init container removed - playwright is already installed in the main image
+      # initContainers:
+      # - name: install-playwright
+      #   image: mcr.microsoft.com/playwright/python:v1.40.0-jammy
+      #   command: ['sh', '-c', 'playwright install --with-deps chromium || true']
+      #   volumeMounts:
+      #   - name: playwright-cache
+      #     mountPath: /ms-playwright
+      containers:
+      - name: crawl4ai
+        # TODO: Update with Docker Hub registry after PAT validation
+        # Image: docker4zerocool/crawl4ai-service:latest
+        image: docker4zerocool/crawl4ai-service:latest
+        ports:
+        - containerPort: 8000
+        env:
+        # Redis Connection - Using existing Redis Enterprise MCP database
+        - name: REDIS_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: REDIS_HOST
+        - name: REDIS_PORT
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: REDIS_PORT
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: redb-mcp-database
+              key: password
+        # Alternative: Use Redis cluster directly (no password) - commented out
+        # - name: REDIS_HOST
+        #   value: "redis-cluster.redis.svc.cluster.local"
+        # - name: REDIS_PORT
+        #   value: "6379"
+        
+        # Playwright Configuration
+        - name: PLAYWRIGHT_BROWSERS_PATH
+          value: "/ms-playwright"
+        
+        # Optional: PostgreSQL for analytics - commented out (uncomment if needed)
+        # - name: DATABASE_URL
+        #   valueFrom:
+        #     secretKeyRef:
+        #       name: pg-ceph-app
+        #       namespace: pg
+        #       key: uri
+        
+        volumeMounts:
+        - name: playwright-cache
+          mountPath: /ms-playwright
+        resources:
+          requests:
+            memory: "1Gi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+      volumes:
+      - name: playwright-cache
+        emptyDir: {}

@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: search-infrastructure
+data:
+  # Application-wide configuration
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  
+  # Service URLs (internal cluster DNS)
+  SEARXNG_URL: "http://searxng:8080"
+  CRAWL4AI_URL: "http://crawl4ai:8000"
+  
+  # Cache TTLs (in seconds)
+  CACHE_TTL_SEARCH: "3600"  # 1 hour
+  CACHE_TTL_CRAWL: "86400"  # 24 hours
+  
+  # Database connection (will be overridden by secret refs in deployment)
+  DB_HOST: "pg-ceph-rw.pg.svc.cluster.local"
+  DB_PORT: "5432"
+  
+  # Redis connection (will be overridden by secret refs in deployment)
+  # Using service endpoint from Redis Enterprise
+  REDIS_HOST: "mcp-database.redis.svc.cluster.local"
+  REDIS_PORT: "10515"
+

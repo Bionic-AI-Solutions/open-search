@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: crawl4ai
+  namespace: search-infrastructure
+spec:
+  selector:
+    app: crawl4ai
+  ports:
+  - port: 8000
+    targetPort: 8000
+  type: ClusterIP

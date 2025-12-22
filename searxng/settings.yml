@@ -1,0 +1,13 @@
+use_default_settings: true
+
+server:
+  limiter: false
+  public_instance: false
+  secret_key: "your_secret_key_here"  # generate with openssl rand -hex 32
+  bind_address: "0.0.0.0"
+  port: 8080
+
+search:
+  formats:
+    - html
+    - json  # for MCP/API clients

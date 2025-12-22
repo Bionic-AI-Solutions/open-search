@@ -1,0 +1,3 @@
+# Minimal: use defaults
+[botdetection.ip_limit]
+enabled = false

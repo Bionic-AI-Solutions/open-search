@@ -1,0 +1,21 @@
+# =============================================================================
+# STANDALONE REDIS SERVICE - COMMENTED OUT
+# =============================================================================
+# This service is commented out because we are using the existing
+# Redis Enterprise cluster (mcp-database) in the 'redis' namespace.
+# 
+# Service endpoint: mcp-database.redis.svc.cluster.local:10515
+# =============================================================================
+
+# apiVersion: v1
+# kind: Service
+# metadata:
+#   name: redis
+#   namespace: search-infrastructure
+# spec:
+#   selector:
+#     app: redis
+#   ports:
+#   - port: 6379
+#     targetPort: 6379
+#   type: ClusterIP
