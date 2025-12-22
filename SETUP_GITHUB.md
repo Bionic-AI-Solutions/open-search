@@ -93,7 +93,7 @@ open-search/
 1. Create the repository using one of the methods above
 2. Push the code
 3. Review and merge any initial pull requests
-4. Set up branch protection rules
-5. Configure GitHub Secrets for CI/CD
+4. Set up branch protection rules (optional)
+5. Build and push Docker images manually within your cluster network
 6. Start using the repository!
 
