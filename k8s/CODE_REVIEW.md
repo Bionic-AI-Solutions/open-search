@@ -325,7 +325,7 @@ cache:
 **Test Command:**
 
 ```bash
-echo "dckr_pat_<REDACTED>" | docker login --username docker4zerocool --password-stdin
+echo "dckr_pat_iZn55_MiVeYSzhx-OECGWfaFlpw" | docker login --username docker4zerocool --password-stdin
 ```
 
 **Result:** `unauthorized: incorrect username or password`

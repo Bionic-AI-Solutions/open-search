@@ -4,7 +4,7 @@
 
 **PAT Authentication Test:** ❌ **FAILED**
 
-The provided PAT (`dckr_pat_<REDACTED>`) failed authentication with error:
+The provided PAT (`dckr_pat_iZn55_MiVeYSzhx-OECGWfaFlpw`) failed authentication with error:
 ```
 Error response from daemon: Get "https://registry-1.docker.io/v2/": unauthorized: incorrect username or password
 ```
