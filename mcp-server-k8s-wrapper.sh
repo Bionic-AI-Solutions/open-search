@@ -1,6 +1,9 @@
 #!/bin/bash
 # Wrapper script to connect to Kubernetes MCP server via kubectl exec
 # This allows MCP clients (like Cursor) to connect to the MCP server running in Kubernetes
+# 
+# The MCP server is already running in the pod with all environment variables configured.
+# This script simply connects the client's stdio to the existing MCP server process.
 
 set -e
 
@@ -22,7 +25,9 @@ if [ -z "$MCP_POD" ]; then
   exit 1
 fi
 
-# Exec into the pod and run the MCP server
+# Exec into the pod and connect to the MCP server
 # The -i flag ensures stdin is passed through, which is required for MCP stdio protocol
+# All environment variables (SEARXNG_URL, CRAWL4AI_URL, REDIS_HOST, etc.) are already
+# configured in the Kubernetes deployment - we don't need to set them here!
 kubectl exec -i -n "$NAMESPACE" "$MCP_POD" -- node /app/dist/index.js
 

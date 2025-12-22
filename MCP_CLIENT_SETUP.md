@@ -61,16 +61,16 @@ spec:
   template:
     spec:
       containers:
-      - name: my-app
-        image: my-app:latest
-      - name: mcp-server
-        image: docker4zerocool/mcp-search-server:latest
-        env:
-        - name: SEARXNG_URL
-          value: "http://searxng:8080"
-        - name: CRAWL4AI_URL
-          value: "http://crawl4ai:8000"
-        # ... other env vars
+        - name: my-app
+          image: my-app:latest
+        - name: mcp-server
+          image: docker4zerocool/mcp-search-server:latest
+          env:
+            - name: SEARXNG_URL
+              value: "http://searxng:8080"
+            - name: CRAWL4AI_URL
+              value: "http://crawl4ai:8000"
+          # ... other env vars
 ```
 
 Then your app can communicate with the MCP server via stdio within the pod.
@@ -81,22 +81,22 @@ If you need HTTP access from within the cluster, create a gateway service that t
 
 ```typescript
 // http-mcp-gateway.ts
-import express from 'express';
-import { spawn } from 'child_process';
+import express from "express";
+import { spawn } from "child_process";
 
 const app = express();
 app.use(express.json());
 
 // Spawn MCP server process
-const mcpProcess = spawn('node', ['/app/dist/index.js'], {
+const mcpProcess = spawn("node", ["/app/dist/index.js"], {
   env: {
-    SEARXNG_URL: process.env.SEARXNG_URL || 'http://searxng:8080',
-    CRAWL4AI_URL: process.env.CRAWL4AI_URL || 'http://crawl4ai:8000',
-  }
+    SEARXNG_URL: process.env.SEARXNG_URL || "http://searxng:8080",
+    CRAWL4AI_URL: process.env.CRAWL4AI_URL || "http://crawl4ai:8000",
+  },
 });
 
 // Handle MCP protocol over HTTP
-app.post('/mcp/call', async (req, res) => {
+app.post("/mcp/call", async (req, res) => {
   // Translate HTTP request to MCP stdio protocol
   // This requires implementing MCP protocol handling
 });
@@ -122,32 +122,17 @@ kubectl port-forward -n search-infrastructure pod/$MCP_POD 3000:3000
 
 **However**, MCP doesn't actually use port 3000 for communication - it uses stdio. So you need a different approach:
 
-### Step 2: Create a Local Wrapper Script
+### Step 2: Use the Provided Wrapper Script
 
-Create a wrapper script that connects to the Kubernetes pod via `kubectl exec`:
+The repository includes `mcp-server-k8s-wrapper.sh` which connects to your existing Kubernetes MCP server.
 
-**`mcp-server-k8s-wrapper.sh`:**
+**Key Point:** The MCP server is ALREADY running in Kubernetes with all environment variables configured (SEARXNG_URL, CRAWL4AI_URL, REDIS_HOST, etc.). The wrapper script simply connects your client's stdio to the existing MCP server process via `kubectl exec`.
+
+Copy and make it executable:
 
 ```bash
-#!/bin/bash
-# Wrapper to connect to Kubernetes MCP server via kubectl exec
-
-# Get the MCP server pod name
-MCP_POD=$(kubectl get pods -n search-infrastructure -l app=mcp-server -o jsonpath='{.items[0].metadata.name}')
-
-if [ -z "$MCP_POD" ]; then
-  echo "Error: MCP server pod not found" >&2
-  exit 1
-fi
-
-# Exec into the pod and run the MCP server
-# kubectl exec streams stdin/stdout, which is perfect for MCP
-kubectl exec -i -n search-infrastructure $MCP_POD -- node /app/dist/index.js
-```
-
-Make it executable:
-```bash
-chmod +x mcp-server-k8s-wrapper.sh
+cp mcp-server-k8s-wrapper.sh ~/bin/mcp-server-k8s-wrapper.sh
+chmod +x ~/bin/mcp-server-k8s-wrapper.sh
 ```
 
 ### Step 3: Configure Cursor
@@ -164,35 +149,40 @@ Edit Cursor's MCP configuration:
     "open-search": {
       "command": "/absolute/path/to/mcp-server-k8s-wrapper.sh",
       "env": {
-        "KUBECONFIG": "/path/to/your/kubeconfig"
+        "KUBECONFIG": "/path/to/your/kubeconfig",
+        "MCP_NAMESPACE": "search-infrastructure"
       }
     }
   }
 }
 ```
 
+**Important:** You do NOT need to configure `SEARXNG_URL`, `CRAWL4AI_URL`, or `REDIS_HOST` here. These are already set in your Kubernetes deployment. The wrapper just connects to the existing MCP server pod.
+
 ### Step 4: Alternative - Use Local MCP Server with Remote Services
 
 If the wrapper approach doesn't work, run the MCP server locally but point it to your Kubernetes services:
 
 1. **Port-forward the services:**
+
    ```bash
    # Terminal 1: SearXNG
    kubectl port-forward -n search-infrastructure svc/searxng 8080:8080
-   
+
    # Terminal 2: Crawl4AI
    kubectl port-forward -n search-infrastructure svc/crawl4ai 8000:8000
-   
+
    # Terminal 3: Redis (if needed)
    kubectl port-forward -n redis svc/mcp-database 6379:10515
    ```
 
 2. **Run MCP server locally:**
+
    ```bash
    cd /path/to/open-search/mcp-server
    npm install
    npm run build
-   
+
    SEARXNG_URL=http://localhost:8080 \
    CRAWL4AI_URL=http://localhost:8000 \
    REDIS_HOST=localhost \
@@ -388,7 +378,7 @@ Agent:
    ```bash
    # Test kubectl can access the cluster
    kubectl get pods -n search-infrastructure
-   
+
    # Test exec works
    kubectl exec -n search-infrastructure -l app=mcp-server -- echo "test"
    ```
