@@ -65,22 +65,15 @@ Once the repository is created and pushed, you can:
    - Require pull request reviews
    - Require status checks to pass
 
-2. **Configure GitHub Secrets** (for CI/CD):
-   - Go to Settings → Secrets and variables → Actions
-   - Add `DOCKER_USERNAME`: Your Docker Hub username
-   - Add `DOCKER_TOKEN`: Your Docker Hub access token
-
-3. **Enable GitHub Actions**:
-   - The CI/CD pipeline is already configured in `.github/workflows/ci-cd.yml`
-   - It will automatically build and push Docker images on push to main/develop
+2. **Note on CI/CD**:
+   - CI/CD workflows are not included as the cluster is not internet-accessible
+   - Docker images should be built and pushed manually from within the cluster network
+   - Use the provided Dockerfiles and build scripts for local image creation
 
 ## Repository Structure
 
 ```
 open-search/
-├── .github/
-│   └── workflows/
-│       └── ci-cd.yml          # CI/CD pipeline
 ├── k8s/                       # Kubernetes manifests
 │   ├── deployments/          # Deployment configs
 │   ├── services/             # Service definitions
