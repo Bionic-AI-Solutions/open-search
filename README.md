@@ -9,11 +9,10 @@ Complete open-source search infrastructure to replace commercial APIs (Tavily, B
 - [Prerequisites](#prerequisites)
 - [Quick Start](#quick-start)
 - [Component Details](#component-details)
-- [MCP Integration](#mcp-integration)
-- [Deployment Options](#deployment-options)
+- [MCP Server](#mcp-server)
+- [Deployment](#deployment)
 - [Configuration](#configuration)
-- [API Usage](#api-usage)
-- [Monitoring](#monitoring)
+- [Documentation](#documentation)
 - [Troubleshooting](#troubleshooting)
 
 ## 🎯 Overview
@@ -23,7 +22,7 @@ This project provides a production-ready, self-hosted search infrastructure with
 - **SearXNG**: Meta-search engine aggregating results from 70+ search engines
 - **Crawl4AI**: Advanced web crawling with AI-powered content extraction
 - **Redis**: High-performance caching layer
-- **MCP Server**: Model Context Protocol server for AI agent integration
+- **MCP Server**: FastMCP (Python) server exposing search and crawl tools to AI agents
 - **PostgreSQL**: Optional analytics database
 
 ### Key Benefits
@@ -37,12 +36,11 @@ This project provides a production-ready, self-hosted search infrastructure with
 ## 🏗️ Architecture
 
 ```
-Client Apps → MCP Server → SearXNG / Crawl4AI → External Search Engines
-                ↓
-             Redis Cache
-                ↓
-          PostgreSQL (Analytics)
+Client Apps → FastMCP Server (Python) → SearXNG / Crawl4AI → External Search Engines
+                                      → Redis Cache (optional)
 ```
+
+**Simple, clean, and production-ready!**
 
 ## 📦 Prerequisites
 
@@ -116,7 +114,7 @@ curl -X POST http://localhost:8000/crawl \
 docker exec -it redis-cache redis-cli ping
 
 # Test MCP Server
-curl http://localhost:3000/health
+curl http://localhost:8000/health
 ```
 
 ## 🔧 Component Details
@@ -150,15 +148,17 @@ Advanced web crawler with AI-powered content extraction.
 - `GET /result/{job_id}` - Retrieve results
 - `GET /health` - Health check
 
-### MCP Server (Port 3000)
+### MCP Server (Port 8000)
 
-Model Context Protocol server exposing search infrastructure to AI agents.
+FastMCP (Python) server exposing search infrastructure to AI agents via Model Context Protocol.
 
 **Tools:**
-- `web_search` - Search the web
-- `web_crawl` - Deep crawl URLs
-- `extract_content` - Extract specific content
-- `analyze_search_results` - Analyze and rank results
+- `web_search` - Search the web using SearXNG
+- `web_crawl` - Deep crawl URLs using Crawl4AI
+- `extract_content` - Extract specific content from pages
+- `analyze_search_results` - Analyze and rank search results
+
+**See**: [MCP Documentation](./docs/mcp/README.md) for details.
 
 ### Redis (Port 6379)
 
@@ -170,23 +170,38 @@ In-memory cache for search results and crawled content.
 - Max memory: 512MB (configurable)
 - Eviction policy: allkeys-lru
 
-## 🤖 MCP Integration
+## 🤖 MCP Server
+
+### Quick Start
+
+The MCP server is deployed and running. See [MCP Documentation](./docs/mcp/README.md) for:
+- Quick start guide
+- Client configuration
+- Gateway setup
+- Tool documentation
 
 ### Configure MCP Client
 
-For Claude Desktop or other MCP clients, add to your configuration:
+For Cursor/Claude Desktop or other MCP clients:
 
 ```json
 {
   "mcpServers": {
-    "search": {
-      "command": "node",
-      "args": ["/path/to/mcp-server/dist/index.js"],
-      "env": {
-        "SEARXNG_URL": "http://localhost:8080",
-        "CRAWL4AI_URL": "http://localhost:8000",
-        "REDIS_URL": "redis://localhost:6379"
-      }
+    "oss-search": {
+      "transport": "sse",
+      "url": "http://192.168.0.220:8000/sse"
+    }
+  }
+}
+```
+
+**For Kubernetes (internal):**
+```json
+{
+  "mcpServers": {
+    "oss-search": {
+      "transport": "sse",
+      "url": "http://mcp-server-fastmcp.search-infrastructure.svc.cluster.local:8000/sse"
     }
   }
 }
@@ -274,10 +289,10 @@ kubectl get svc -n search-infrastructure
 
 ```bash
 # View logs
-kubectl logs -f -n search-infrastructure deployment/mcp-server
+kubectl logs -f -n search-infrastructure deployment/mcp-server-fastmcp
 
 # Scale deployment
-kubectl scale deployment mcp-server --replicas=5 -n search-infrastructure
+kubectl scale deployment mcp-server-fastmcp --replicas=5 -n search-infrastructure
 
 # View resource usage
 kubectl top pods -n search-infrastructure
@@ -517,7 +532,8 @@ docker stats
 - `oss-search-architecture.md` - Complete architecture documentation
 - `docker-compose.yml` - Docker Compose configuration
 - `k8s/` - Kubernetes manifests
-- `mcp-server/` - MCP server implementation
+- `mcp-server-fastmcp/` - FastMCP server (Python) - **Active**
+- `docs/mcp/` - MCP server documentation
 - `crawl4ai-service/` - Crawl4AI service wrapper
 
 ### External Links

@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-10515
+  namespace: redis
+  labels:
+    app: redis-enterprise
+    redis.io/bdb: "1"
+    redis.io/cluster: redis-cluster
+    redis.io/database: "mcp-database"
+spec:
+  type: ClusterIP
+  ports:
+  - name: redis
+    port: 10515
+    protocol: TCP
+    targetPort: 10515
+  # Point to redis-cluster-ceph pods which host the database
+  selector:
+    app: redis-cluster-ceph
+  sessionAffinity: ClientIP

@@ -36,7 +36,7 @@ start: ## Start all services
 	@$(DOCKER_COMPOSE) up -d
 	@echo "$(GREEN)Services started!$(NC)"
 	@echo "Access URLs:"
-	@echo "  MCP Server:  http://localhost:3000"
+	@echo "  MCP Server:  http://localhost:8000"
 	@echo "  SearXNG:     http://localhost:8080"
 	@echo "  Crawl4AI:    http://localhost:8000"
 
@@ -52,7 +52,7 @@ logs: ## Show logs from all services
 	@$(DOCKER_COMPOSE) logs -f
 
 logs-mcp: ## Show MCP server logs
-	@$(DOCKER_COMPOSE) logs -f mcp-server
+	@$(DOCKER_COMPOSE) logs -f mcp-server-fastmcp
 
 logs-searxng: ## Show SearXNG logs
 	@$(DOCKER_COMPOSE) logs -f searxng
@@ -74,7 +74,7 @@ clean-cache: ## Clear Redis cache
 	@echo "$(GREEN)Cache cleared$(NC)"
 
 shell-mcp: ## Open shell in MCP server container
-	@docker exec -it mcp-search-server sh
+	@docker exec -it mcp-search-server bash
 
 shell-crawl4ai: ## Open shell in Crawl4AI container
 	@docker exec -it crawl4ai-service bash
@@ -97,7 +97,7 @@ test-crawl4ai: ## Test Crawl4AI
 
 test-mcp: ## Test MCP server health
 	@echo "$(GREEN)Testing MCP server...$(NC)"
-	@curl -s http://localhost:3000/health | jq .
+	@curl -s http://localhost:8000/health | jq .
 
 test-all: test-searxng test-crawl4ai test-mcp ## Run all tests
 
@@ -131,10 +131,10 @@ k8s-status: ## Show Kubernetes deployment status
 	@$(KUBECTL) get ingress -n $(NAMESPACE)
 
 k8s-logs: ## Show Kubernetes logs
-	@$(KUBECTL) logs -f -n $(NAMESPACE) deployment/mcp-server
+	@$(KUBECTL) logs -f -n $(NAMESPACE) deployment/mcp-server-fastmcp
 
 k8s-scale: ## Scale MCP server deployment (usage: make k8s-scale REPLICAS=5)
-	@$(KUBECTL) scale deployment mcp-server --replicas=$(REPLICAS) -n $(NAMESPACE)
+	@$(KUBECTL) scale deployment mcp-server-fastmcp --replicas=$(REPLICAS) -n $(NAMESPACE)
 
 k8s-delete: ## Delete Kubernetes deployment
 	@echo "$(RED)Deleting Kubernetes resources...$(NC)"
@@ -146,7 +146,7 @@ k8s-delete: ## Delete Kubernetes deployment
 # Development commands
 dev-mcp: ## Run MCP server in development mode
 	@echo "$(GREEN)Starting MCP server in dev mode...$(NC)"
-	@cd mcp-server && npm install && npm run dev
+	@cd mcp-server-fastmcp && python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000
 
 dev-crawl4ai: ## Run Crawl4AI in development mode
 	@echo "$(GREEN)Starting Crawl4AI in dev mode...$(NC)"
@@ -185,9 +185,9 @@ docs: ## Generate documentation
 	@echo "  - oss-search-architecture.md"
 
 # Install dependencies
-install-node: ## Install Node.js dependencies for MCP server
-	@echo "$(GREEN)Installing Node.js dependencies...$(NC)"
-	@cd mcp-server && npm install
+install-python-mcp: ## Install Python dependencies for MCP server
+	@echo "$(GREEN)Installing Python dependencies for MCP server...$(NC)"
+	@cd mcp-server-fastmcp && pip install -r requirements.txt
 
 install-python: ## Install Python dependencies for Crawl4AI
 	@echo "$(GREEN)Installing Python dependencies...$(NC)"
@@ -197,7 +197,7 @@ install-python: ## Install Python dependencies for Crawl4AI
 health: ## Check health of all services
 	@echo "$(GREEN)Checking service health...$(NC)"
 	@echo "MCP Server:"
-	@curl -s http://localhost:3000/health || echo "$(RED)MCP Server not responding$(NC)"
+	@curl -s http://localhost:8000/health || echo "$(RED)MCP Server not responding$(NC)"
 	@echo ""
 	@echo "Crawl4AI:"
 	@curl -s http://localhost:8000/health || echo "$(RED)Crawl4AI not responding$(NC)"

@@ -28,9 +28,9 @@ spec:
         pathType: Prefix
         backend:
           service:
-            name: mcp-server
+            name: mcp-server-fastmcp
             port:
-              number: 3000
+              number: 8000
       # Optional: SearXNG direct access (uncomment if needed)
       # - path: /searxng
       #   pathType: Prefix

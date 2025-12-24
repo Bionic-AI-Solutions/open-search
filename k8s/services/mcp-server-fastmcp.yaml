@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mcp-server-fastmcp
+  namespace: search-infrastructure
+spec:
+  type: LoadBalancer
+  selector:
+    app: mcp-server-fastmcp
+  ports:
+  - port: 8000
+    targetPort: 8000
+    name: http
+    protocol: TCP
+

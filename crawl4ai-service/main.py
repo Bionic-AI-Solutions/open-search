@@ -5,10 +5,10 @@ Provides RESTful API for the Crawl4AI library
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, HttpUrl, Field
+from pydantic import BaseModel, HttpUrl, Field, field_validator
 from typing import Optional, List, Dict, Any
 import asyncio
-from crawl4ai import AsyncWebCrawler, CacheMode
+from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig, CacheMode
 from crawl4ai.extraction_strategy import LLMExtractionStrategy, CosineStrategy
 from crawl4ai.chunking_strategy import RegexChunking, SlidingWindowChunking
 # MarkdownChunking removed in newer versions - use RegexChunking for markdown
@@ -60,6 +60,31 @@ class CrawlResponse(BaseModel):
     metadata: Dict[str, Any]
     screenshot: Optional[str] = None
     timestamp: str
+    
+    @field_validator('links', mode='before')
+    @classmethod
+    def convert_links_to_strings(cls, v):
+        """Convert links from dicts to strings - handles both new and cached data"""
+        if v is None:
+            return []
+        if not isinstance(v, (list, tuple)):
+            return []
+        converted = []
+        for link in v:
+            if isinstance(link, dict):
+                # Extract URL from dict (Crawl4AI returns links as dicts with 'href' key)
+                url = link.get("href") or link.get("url") or link.get("link") or link.get("src")
+                if url:
+                    converted.append(str(url))
+                else:
+                    # Fallback: convert entire dict to string
+                    converted.append(str(link))
+            elif isinstance(link, str):
+                converted.append(link)
+            else:
+                # Convert anything else to string
+                converted.append(str(link))
+        return converted
 
 class HealthResponse(BaseModel):
     status: str
@@ -75,7 +100,11 @@ async def startup_event():
         redis_host = os.getenv("REDIS_HOST", "redis")
         redis_port = os.getenv("REDIS_PORT", "6379")
         redis_password = os.getenv("REDIS_PASSWORD", "")
-        redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}" if redis_password else f"redis://{redis_host}:{redis_port}"
+        # OSS Redis Cluster doesn't use password - only use password if explicitly set and not empty
+        if redis_password and redis_password.strip():
+            redis_url = f"redis://:{redis_password}@{redis_host}:{redis_port}"
+        else:
+            redis_url = f"redis://{redis_host}:{redis_port}"
         redis_client = await redis.from_url(
             redis_url,
             encoding="utf-8",
@@ -163,40 +192,53 @@ async def perform_crawl(request: CrawlRequest) -> CrawlResponse:
     cached_result = await get_cached_result(cache_key)
     if cached_result:
         logger.info(f"Cache hit for {request.url}")
+        # CRITICAL: Ensure cached links are strings (backward compatibility)
+        if "links" in cached_result and cached_result["links"]:
+            cached_links = []
+            for link in cached_result["links"]:
+                if isinstance(link, dict):
+                    url = link.get("href") or link.get("url") or link.get("link") or link.get("src")
+                    cached_links.append(str(url) if url else str(link))
+                else:
+                    cached_links.append(str(link))
+            cached_result["links"] = [str(l) for l in cached_links]  # Final safety pass
         return CrawlResponse(**cached_result)
     
     # Perform crawl
     try:
-        async with AsyncWebCrawler(verbose=True) as crawler:
-            # Prepare crawl parameters
-            crawl_params = {
-                "url": str(request.url),
-                "word_count_threshold": request.word_count_threshold,
-                "bypass_cache": True,
-                "screenshot": request.screenshot
-            }
-            
-            # Add chunking strategy
-            chunking_strategy = get_chunking_strategy(request.chunking_strategy)
-            crawl_params["chunking_strategy"] = chunking_strategy
-            
-            # Add extraction strategy if specified
-            extraction_strategy = get_extraction_strategy(request.extraction_strategy)
-            if extraction_strategy:
-                crawl_params["extraction_strategy"] = extraction_strategy
-            
-            # Add optional parameters
-            if request.wait_for:
-                crawl_params["wait_for"] = request.wait_for
-            
-            if request.js_code:
-                crawl_params["js_code"] = request.js_code
-            
-            if request.css_selector:
-                crawl_params["css_selector"] = request.css_selector
-            
-            # Execute crawl
-            result = await crawler.arun(**crawl_params)
+        # Configure browser
+        browser_config = BrowserConfig(
+            headless=True,
+            verbose=True
+        )
+        
+        # Configure chunking strategy
+        chunking_strategy = get_chunking_strategy(request.chunking_strategy)
+        
+        # Configure extraction strategy
+        extraction_strategy = get_extraction_strategy(request.extraction_strategy)
+        
+        # Create crawler run config
+        # Based on Crawl4AI self-hosting best practices: https://docs.crawl4ai.com/core/self-hosting/
+        run_config = CrawlerRunConfig(
+            word_count_threshold=request.word_count_threshold,
+            cache_mode=CacheMode.BYPASS,  # We handle caching ourselves via Redis
+            chunking_strategy=chunking_strategy,
+            extraction_strategy=extraction_strategy,
+            screenshot=request.screenshot,
+            wait_for=request.wait_for,
+            js_code=request.js_code,
+            css_selector=request.css_selector,
+            page_timeout=request.timeout * 1000 if request.timeout else 30000,  # Convert to milliseconds
+            verbose=True,
+            # Additional options from self-hosting best practices
+            remove_overlay_elements=True  # Remove popups/overlays for cleaner content
+            # Note: cache_mode=CacheMode.BYPASS already set above (we handle caching via Redis)
+        )
+        
+        # Execute crawl with proper configuration
+        async with AsyncWebCrawler(config=browser_config) as crawler:
+            result = await crawler.arun(url=str(request.url), config=run_config)
             
             # Process result
             if not result.success:
@@ -206,22 +248,96 @@ async def perform_crawl(request: CrawlRequest) -> CrawlResponse:
                 )
             
             # Extract data
+            # Handle markdown - it might be an object with raw_markdown and fit_markdown
+            if hasattr(result.markdown, 'raw_markdown'):
+                markdown_content = result.markdown.raw_markdown or result.markdown.fit_markdown or ""
+            elif isinstance(result.markdown, str):
+                markdown_content = result.markdown
+            else:
+                markdown_content = str(result.markdown) if result.markdown else ""
+            
+            # Handle HTML - prefer cleaned_html if available
+            html_content = result.cleaned_html if hasattr(result, 'cleaned_html') and result.cleaned_html else (result.html or "")
+            
+            # Convert links to strings if they're dicts
+            links_dict = result.links if isinstance(result.links, dict) else {}
+            internal_links = links_dict.get("internal", []) or []
+            external_links = links_dict.get("external", []) or []
+            all_links = []
+            
+            # Process all links - extract href from dicts
+            for link in list(internal_links) + list(external_links):
+                if isinstance(link, dict):
+                    # Try multiple possible keys for the URL
+                    url = link.get("href") or link.get("url") or link.get("link") or link.get("src")
+                    if url:
+                        all_links.append(str(url))
+                    else:
+                        # Fallback: convert entire dict to string representation
+                        all_links.append(str(link))
+                elif isinstance(link, str):
+                    all_links.append(link)
+                else:
+                    # Convert anything else to string
+                    all_links.append(str(link))
+            
+            # Convert media to strings as well
+            media_dict = result.media if isinstance(result.media, dict) else {}
+            images = media_dict.get("images", [])
+            videos = media_dict.get("videos", [])
+            image_urls = []
+            video_urls = []
+            
+            for img in images:
+                if isinstance(img, dict):
+                    image_urls.append(img.get("src", img.get("url", str(img))))
+                else:
+                    image_urls.append(str(img))
+            
+            for vid in videos:
+                if isinstance(vid, dict):
+                    video_urls.append(vid.get("src", vid.get("url", str(vid))))
+                else:
+                    video_urls.append(str(vid))
+            
+            # Get metadata
+            metadata_dict = result.metadata if isinstance(result.metadata, dict) else {}
+            
+            # Debug: Verify links are strings
+            logger.info(f"Links before validation: {all_links[:3] if all_links else []}")
+            logger.info(f"Link types: {[type(l).__name__ for l in all_links[:3]] if all_links else []}")
+            
+            # CRITICAL: Final conversion - ensure ALL links are strings before creating response_data
+            # This must happen BEFORE response_data is created to avoid Pydantic validation errors
+            final_links_list = []
+            for item in all_links:
+                if isinstance(item, dict):
+                    url = item.get("href") or item.get("url") or item.get("link") or item.get("src")
+                    final_links_list.append(str(url) if url else str(item))
+                else:
+                    final_links_list.append(str(item))
+            
+            # One more safety pass - force everything to string
+            final_links_list = [str(l) for l in final_links_list]
+            
+            logger.info(f"Final links count: {len(final_links_list)}, all strings: {all(isinstance(l, str) for l in final_links_list)}")
+            
             response_data = {
                 "url": str(request.url),
-                "markdown": result.markdown or "",
-                "html": result.html or "",
-                "links": result.links.get("internal", []) + result.links.get("external", []),
+                "markdown": markdown_content,
+                "html": html_content,
+                "links": final_links_list,  # Use final_links_list which is guaranteed to be strings
                 "media": {
-                    "images": result.media.get("images", []),
-                    "videos": result.media.get("videos", [])
+                    "images": image_urls,
+                    "videos": video_urls
                 },
                 "metadata": {
-                    "title": result.metadata.get("title", ""),
-                    "description": result.metadata.get("description", ""),
-                    "keywords": result.metadata.get("keywords", []),
-                    "language": result.metadata.get("language", ""),
+                    "title": metadata_dict.get("title", ""),
+                    "description": metadata_dict.get("description", ""),
+                    "keywords": metadata_dict.get("keywords", []),
+                    "language": metadata_dict.get("language", ""),
                 },
-                "screenshot": result.screenshot if request.screenshot else None,
+                "screenshot": result.screenshot if request.screenshot and hasattr(result, 'screenshot') else None,
                 "timestamp": datetime.utcnow().isoformat()
             }
             

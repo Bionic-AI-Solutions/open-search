@@ -77,22 +77,21 @@ services:
           cpus: '0.5'
           memory: 1G
 
-  # MCP Server
-  mcp-server:
+  # MCP Server (FastMCP)
+  mcp-server-fastmcp:
     build:
-      context: ./mcp-server
+      context: ./mcp-server-fastmcp
       dockerfile: Dockerfile
     container_name: mcp-search-server
     ports:
-      - "3000:3000"
+      - "8000:8000"
     environment:
+      - PORT=8000
       - SEARXNG_URL=http://searxng:8080
       - CRAWL4AI_URL=http://crawl4ai:8000
-      - REDIS_URL=redis://redis:6379
-      - NODE_ENV=production
-      - CACHE_TTL_SEARCH=3600
-      - CACHE_TTL_CRAWL=86400
-      - LOG_LEVEL=info
+      - REDIS_ENABLED=true
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     restart: unless-stopped
     networks:
       - search-network
@@ -104,7 +103,7 @@ services:
       crawl4ai:
         condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3000/health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -124,7 +123,7 @@ services:
     networks:
       - search-network
     depends_on:
-      mcp-server:
+      mcp-server-fastmcp:
         condition: service_healthy
 
   # PostgreSQL (Optional - for analytics)

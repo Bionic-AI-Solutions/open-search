@@ -14,8 +14,11 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright browsers
-RUN playwright install chromium
+# Install Playwright browsers (as root before switching to non-root user)
+# Install both chromium and chromium headless shell
+RUN playwright install chromium && \
+    playwright install chromium-headless-shell && \
+    playwright install-deps chromium || true
 
 # Copy application code
 COPY main.py .
@@ -24,7 +27,11 @@ COPY main.py .
 RUN mkdir -p /app/logs
 
 # Create non-root user (skip if UID exists)
-RUN (useradd -m -u 1000 crawluser 2>/dev/null || true) && chown -R 1000:1000 /app
+# Ensure the user has access to Playwright browsers
+# Use the same UID as pwuser (1000) or change ownership
+RUN (useradd -m -u 1000 crawluser 2>/dev/null || true) && \
+    chown -R 1000:1000 /app && \
+    chown -R 1000:1000 /ms-playwright || true
 USER 1000
 
 # Expose port

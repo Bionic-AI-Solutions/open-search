@@ -64,25 +64,26 @@ echo ""
 echo "Step 4: Creating ConfigMaps..."
 kubectl apply -f ${K8S_DIR}/configmaps/app-config.yaml
 kubectl apply -f ${K8S_DIR}/configmaps/searxng-config.yaml
+kubectl apply -f ${K8S_DIR}/configmaps/searxng-limiter.yaml
 
 # Step 5: Create Services
 echo ""
 echo "Step 5: Creating Services..."
 kubectl apply -f ${K8S_DIR}/services/searxng.yaml
 kubectl apply -f ${K8S_DIR}/services/crawl4ai.yaml
-kubectl apply -f ${K8S_DIR}/services/mcp-server.yaml
+kubectl apply -f ${K8S_DIR}/services/mcp-server-fastmcp.yaml
 
 # Step 6: Create Deployments
 echo ""
 echo "Step 6: Creating Deployments..."
 kubectl apply -f ${K8S_DIR}/deployments/searxng.yaml
 kubectl apply -f ${K8S_DIR}/deployments/crawl4ai.yaml
-kubectl apply -f ${K8S_DIR}/deployments/mcp-server.yaml
+kubectl apply -f ${K8S_DIR}/deployments/mcp-server-fastmcp.yaml
 
 # Step 7: Create HPA (optional)
 echo ""
 echo "Step 7: Creating HPA..."
-kubectl apply -f ${K8S_DIR}/deployments/mcp-server-hpa.yaml || echo "HPA already exists or failed"
+kubectl apply -f ${K8S_DIR}/deployments/mcp-server-fastmcp-hpa.yaml || echo "HPA already exists or failed"
 
 # Step 8: Create Ingress (optional)
 echo ""
@@ -97,7 +98,7 @@ echo ""
 echo "Waiting for pods to be ready..."
 kubectl wait --for=condition=ready pod -l app=searxng -n ${NAMESPACE} --timeout=120s || true
 kubectl wait --for=condition=ready pod -l app=crawl4ai -n ${NAMESPACE} --timeout=120s || true
-kubectl wait --for=condition=ready pod -l app=mcp-server -n ${NAMESPACE} --timeout=120s || true
+kubectl wait --for=condition=ready pod -l app=mcp-server-fastmcp -n ${NAMESPACE} --timeout=120s || true
 
 echo ""
 echo "Current pod status:"

@@ -88,3 +88,4 @@ echo "  2. Uncomment imagePullSecrets in deployments"
 echo "  3. Apply deployments"
 echo "=========================================="
 
+

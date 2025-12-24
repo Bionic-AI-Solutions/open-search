@@ -20,8 +20,9 @@ data:
   DB_HOST: "pg-ceph-rw.pg.svc.cluster.local"
   DB_PORT: "5432"
   
-  # Redis connection (will be overridden by secret refs in deployment)
-  # Using service endpoint from Redis Enterprise
-  REDIS_HOST: "mcp-database.redis.svc.cluster.local"
-  REDIS_PORT: "10515"
+  # Redis connection - Using OSS Redis Cluster (redis-cluster-ceph)
+  # Redis Enterprise database (mcp-database) is not accessible via service selector
+  # Using working OSS Redis Cluster for caching instead
+  REDIS_HOST: "redis-cluster.redis.svc.cluster.local"
+  REDIS_PORT: "6379"
 
